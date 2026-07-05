@@ -79,6 +79,17 @@ Colors auto-disable when stdout isn't a TTY or `NO_COLOR` env is set (12-factor 
 tc.echo(tc.style.red("error: ", color=True) + "file not found")
 ```
 
+## Agent Workflow Fit
+
+`tiny-cli` is a good fit for the command surfaces that autonomous agents keep creating around small tools:
+
+- **One-shot maintenance commands** — wrap cleanup, sync, scan, and report scripts with typed arguments.
+- **Bounty repro CLIs** — package a reproducible exploit/checker script without adding Click or Typer.
+- **Cron companions** — expose `run`, `status`, `dry-run`, and `repair` commands for scheduled jobs.
+- **Operator prompts** — use `confirm()` and `prompt()` for rare destructive or ambiguous local actions.
+
+Pair it with `tiny-config` for layered settings, `tiny-log` for machine-readable output, and `tiny-timeout` for commands that call flaky services.
+
 ## Benchmarks
 
 ```
@@ -117,16 +128,15 @@ Part of the **tiny-*** zero-dependency toolkit for Python agent infrastructure:
 - [**tiny-compose**](https://github.com/hussain-alsaibai/tiny-compose) — Stack any decorators in any order, declaratively
 - [**tiny-trace**](https://github.com/hussain-alsaibai/tiny-trace) — OTel-compatible tracing, sync + async, W3C propagation
 - [**tiny-secret**](https://github.com/hussain-alsaibai/tiny-secret) — Zero-dep secret loader + redacting printer
-- [**snapdb**](https://github.com/hussain-alsaibai/snapdb) — embedded DB
-
-15 repos, ~6,400 LOC, zero dependencies across the entire stack. All single-file, MIT, fully type-hinted. - [`tiny-metrics`](https://github.com/hussain-alsaibai/tiny-metrics) — Prometheus metrics
-- [`tiny-timeout`](https://github.com/hussain-alsaibai/tiny-timeout) — timeouts that work
-- [`tiny-idempotency`](https://github.com/hussain-alsaibai/tiny-idempotency) — idempotency keys
-
-Built by [OpenClaw](https://github.com/hussain-alsaibai).
 - [**tiny-cron**](https://github.com/hussain-alsaibai/tiny-cron) — cron-style scheduler + intervals
 - [**tiny-flags**](https://github.com/hussain-alsaibai/tiny-flags) — feature flags, percentage rollout
 - [**tiny-queue**](https://github.com/hussain-alsaibai/tiny-queue) — persistent FIFO queue, retries
+- [**tiny-metrics**](https://github.com/hussain-alsaibai/tiny-metrics) — Prometheus-compatible metrics
+- [**tiny-timeout**](https://github.com/hussain-alsaibai/tiny-timeout) — hard timeouts + cooperative deadlines
+- [**tiny-idempotency**](https://github.com/hussain-alsaibai/tiny-idempotency) — Stripe-style idempotency keys
+- [**snapdb**](https://github.com/hussain-alsaibai/snapdb) — embedded DB
+
+21 repos, ~14,700 LOC, zero dependencies across the entire stack. All single-file, MIT, fully type-hinted. Built by [OpenClaw](https://github.com/hussain-alsaibai).
 
 ## License
 

@@ -140,6 +140,12 @@ Part of the **tiny-*** zero-dependency toolkit for Python agent infrastructure:
 
 21 repos, ~14,700 LOC, zero dependencies across the entire stack. All single-file, MIT, fully type-hinted. Built by [OpenClaw](https://github.com/hussain-alsaibai).
 
+## Reports
+
+- [Agent Operator CLI Pattern](reports/2026-07-18-agent-operator-cli.md) —
+  typed command boundaries for scan, verify, report, and publish loops in
+  autonomous developer workflows.
+
 ## License
 
 MIT © 2026 OpenClaw (hussain-alsaibai)

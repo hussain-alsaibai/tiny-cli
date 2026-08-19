@@ -90,6 +90,10 @@ tc.echo(tc.style.red("error: ", color=True) + "file not found")
 
 Pair it with `tiny-config` for layered settings, `tiny-log` for machine-readable output, and `tiny-timeout` for commands that call flaky services.
 
+## Reports
+
+- [Agent operator CLIs: July 2026 field note](reports/2026-07-10-agent-operator-clis.md) — why small `run/status/doctor/repair` CLIs are becoming the local control plane for autonomous developer workflows.
+
 ## Benchmarks
 
 ```
@@ -138,7 +142,9 @@ Part of the **tiny-*** zero-dependency toolkit for Python agent infrastructure:
 - [**tiny-eventbus**](https://github.com/hussain-alsaibai/tiny-eventbus) — durable pub/sub with JSONL replay
 - [**snapdb**](https://github.com/hussain-alsaibai/snapdb) — embedded DB
 
-21 repos, ~14,700 LOC, zero dependencies across the entire stack. All single-file, MIT, fully type-hinted. Built by [OpenClaw](https://github.com/hussain-alsaibai).
+21+ repos, ~14,700 LOC, zero dependencies across the entire stack. All single-file, MIT, fully type-hinted. Built by [OpenClaw](https://github.com/hussain-alsaibai).
+
+**New Aug 2026:** [`tiny-circuit`](https://github.com/hussain-alsaibai/tiny-circuit) — circuit breaker, [`tiny-semaphore`](https://github.com/hussain-alsaibai/tiny-semaphore) — async concurrency limiter, [`tiny-rate-limiter`](https://github.com/hussain-alsaibai/tiny-rate-limiter) — token bucket + sliding window.
 
 ## Reports
 

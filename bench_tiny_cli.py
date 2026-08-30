@@ -26,6 +26,26 @@ def main():
     bench("_coerce (bool)", lambda: tc._coerce("true", bool))
     bench("_coerce (list)", lambda: tc._coerce("a,b,c,d,e", list))
 
+    # v1.1.0 additions
+    _tree = tc.Tree(root_label="root/")
+    _tree.add("src/", "dir")
+    _tree.add("src/main.py", "file")
+    _tree.add("src/utils.py", "file")
+    _tree.add("tests/", "dir")
+    _tree.add("tests/test_main.py", "file")
+    _tree.add("README.md", "file")
+    bench("Tree.__str__ (6 entries)", lambda: str(_tree))
+
+    _table = tc.Table(["Name", "Size", "Modified"], theme="box")
+    for n in range(5):
+        _table.add_row(f"pkg-{n}", f"{n*2} KB", "2026-08-30")
+    bench("Table.__str__ (3x5 box)", lambda: str(_table))
+
+    _table2 = tc.Table(["Name", "Size", "Modified"], theme="markdown")
+    for n in range(5):
+        _table2.add_row(f"pkg-{n}", f"{n*2} KB", "2026-08-30")
+    bench("Table.__str__ (3x5 markdown)", lambda: str(_table2))
+
 
 if __name__ == "__main__":
     main()

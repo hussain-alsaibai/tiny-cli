@@ -1,0 +1,89 @@
+# tiny-cli
+
+> Zero-dependency CLI framework for Python. Auto env discovery, JSON mode, agent output. For humans and AI agents.
+
+- Version: 1.1.0
+- License: MIT
+- Repository: https://github.com/hussain-alsaibai/tiny-cli
+- Language: Python (3.8+)
+- Runtime dependencies: 0
+- Install: `pip install tiny-cli` (or copy `tiny_cli.py`)
+- Docs: README.md, `pyproject.toml`, `bench_tiny_cli.py`
+
+## What this library does
+
+Builds command-line interfaces with argument parsing, sub-commands, auto-generated
+help, JSON / Tree / Table output, automatic environment-variable discovery from CLI
+flag names, and structured output suitable for AI agents (JSON mode by default
+when stdout is not a TTY or `JSON=1` is set).
+
+## When to use it
+
+- You want a CLI smaller than `click` (~150KB) or `typer` (~250KB with deps).
+- You want zero transitive dependencies.
+- You want agents to call your CLI as a subprocess and get structured JSON.
+- You need sub-commands with consistent UX.
+- You want env vars auto-mapped to flags (`--max-retries` ↔ `MAX_RETRIES`).
+
+## When NOT to use it
+
+- You need full POSIX getopt semantics (we use argparse under the hood).
+- You need interactive prompts with cursor control (use `questionary`).
+- You need rich terminal UI (use `rich` or `textual`).
+
+## Public API
+
+- `@cli.command(name=..., help=...)` — decorator
+- `@cli.argument("name", type=..., help=...)` — positional argument
+- `@cli.option("--flag", env="FLAG", type=..., default=...)` — optional flag
+- `cli.run()` — entry point
+- `cli.json_mode(auto=True)` — auto-detect non-TTY for JSON output
+- `cli.Tree(data, root=...)` — pretty tree printer
+- `cli.Table(rows, columns=...)` — pretty table printer
+
+## Code example
+
+```python
+import tiny_cli as tc
+
+cli = tc.App(name="mytool", version="1.0.0")
+
+@cli.command()
+@cli.option("--name", required=True, env="USER_NAME")
+@cli.option("--greet", is_flag=True, default=False)
+def hello(name, greet):
+    """Say hello."""
+    msg = f"Hello, {name}!"
+    if greet:
+        msg = f"Greetings, {name}!"
+    cli.print(msg)
+
+if __name__ == "__main__":
+    cli.run()
+```
+
+## Integration with the tiny-* ecosystem
+
+- Reads config via `tiny_config.load` automatically.
+- Logs via `tiny_log` when `--verbose` is set.
+- Returns machine-readable dicts that `tiny-validator` can validate downstream.
+
+## Compatibility
+
+- Python 3.8 – 3.13 confirmed.
+- No C extensions.
+- Works on Linux, macOS, Windows.
+
+## Common pitfalls
+
+1. `env=` is uppercase by convention; CLI flag auto-derives if omitted.
+2. JSON mode triggers only when stdout is not a TTY — pipe `| jq` to verify.
+3. Sub-commands are case-sensitive.
+4. Help text is auto-generated; explicit `@cli.option(help=...)` wins.
+
+## Changelog
+
+- 1.1.0 — JSON mode, Tree, auto-env, better Table, agent output modes
+- 1.0.0 — sub-commands, options, positional args
+- 0.9.0 — initial release
+

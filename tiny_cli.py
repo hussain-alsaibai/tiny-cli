@@ -46,7 +46,7 @@ from typing import (
     get_type_hints,
 )
 
-__version__ = "1.1.0"
+__version__ = "1.2.0"
 
 # Exit code constants (POSIX-friendly + signal-derived)
 OK = 0
@@ -826,6 +826,131 @@ class App:
             fn.__tiny_cli_help__ = help or fn.__doc__ or ""  # type: ignore[attr-defined]
             return fn
         return deco
+
+    # ---- v1.2.0: command discovery from modules ----
+
+    @classmethod
+    def from_module(
+        cls,
+        module: Union[str, Any],
+        *,
+        name: Optional[str] = None,
+        help: Optional[str] = None,
+        version: Optional[str] = None,
+        auto_env: Union[bool, str] = False,
+        env_path: Optional[Union[str, Path]] = None,
+        prefix: str = "",
+        only_decorated: bool = True,
+    ) -> "App":
+        """Build an App by importing commands from a Python module.
+
+        This is the lazy-import pattern that turns a module of plain
+        functions into a CLI without writing ``@app.command()`` on each
+        one. After import, every public function in the module is
+        registered as a subcommand.
+
+        Args:
+            module: Either a string dotted-path (``"myapp.commands"``)
+                or an already-imported module object.
+            name: App name (default: ``module.__name__``).
+            help: App help text (default: ``module.__doc__``).
+            version: Optional version string.
+            auto_env: Pass through to ``App(...)``.
+            env_path: Pass through to ``App(...)``.
+            prefix: Optional subcommand-name prefix (e.g. ``"aws "`` for
+                all functions to be exposed as ``"aws <func>"``). Useful
+                for namespace layering when a single module powers
+                multiple CLIs.
+            only_decorated: When ``True`` (default), only functions that
+                are already marked as commands (i.e. have
+                ``__tiny_cli_help__`` set, or are wrapped by
+                ``@app.command()``) are registered. When ``False``, every
+                public function (not starting with ``_``) is registered.
+
+        Returns:
+            A new :class:`App` instance with commands auto-registered.
+
+        Example::
+
+            # myapp/commands.py
+            def greet(name, shout=False):
+                # Say hello.
+                msg = f"Hello, {name}!"
+                return msg.upper() if shout else msg
+
+            def add(a, b):
+                # Add two numbers.
+                return a + b
+
+            # main.py
+            from tiny_cli import App
+            app = App.from_module("myapp.commands", help="My CLI")
+            sys.exit(app.run())
+        """
+        import importlib
+
+        if isinstance(module, str):
+            mod = importlib.import_module(module)
+        else:
+            mod = module
+
+        if name is None:
+            name = getattr(mod, "__name__", "cli").rsplit(".", 1)[-1]
+        if help is None:
+            help = (mod.__doc__ or "").strip() or None
+
+        app = cls(
+            name=name,
+            help=help,
+            version=version,
+            auto_env=auto_env,
+            env_path=env_path,
+        )
+
+        for attr_name in dir(mod):
+            if attr_name.startswith("_"):
+                continue
+            fn = getattr(mod, attr_name, None)
+            if not callable(fn):
+                continue
+            # Skip imported modules, classes, builtins, etc.
+            if not (inspect.isfunction(fn) or inspect.iscoroutinefunction(fn)):
+                # Methods on classes get isfunction=False; skip them too.
+                continue
+            # Skip functions whose defining module isn't the target module.
+            if getattr(fn, "__module__", None) != mod.__name__:
+                continue
+            is_decorated = hasattr(fn, "__tiny_cli_help__")
+            if only_decorated and not is_decorated:
+                continue
+            cmd_name = attr_name.replace("_", "-")
+            if prefix:
+                cmd_name = f"{prefix.rstrip()}-{cmd_name}".lstrip("-")
+            app._commands[cmd_name] = fn
+            if not is_decorated:
+                fn.__tiny_cli_help__ = (fn.__doc__ or "").strip()  # type: ignore[attr-defined]
+        return app
+
+    def command_from(self, fn: Callable[..., Any], *, name: Optional[str] = None) -> "App":
+        """Register a single external function as a command.
+
+        Use this when you want to programmatically add a function from
+        another module without importing the whole module via
+        :meth:`from_module`. Equivalent to decorating the function with
+        ``@app.command()``, but for objects that are not defined inside
+        the App class.
+
+        Example::
+
+            from some_library import third_party_func
+            app = App(name="demo")
+            app.command_from(third_party_func)
+        """
+        cmd_name = name or fn.__name__.replace("_", "-")
+        self._commands[cmd_name] = fn
+        if not hasattr(fn, "__tiny_cli_help__"):
+            fn.__tiny_cli_help__ = (fn.__doc__ or "").strip()  # type: ignore[attr-defined]
+        return self
 
     # ---- Parser construction ------------------------------------------
 

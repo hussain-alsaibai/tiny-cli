@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tiny-cli"
-version = "1.1.0"
+version = "1.2.0"
 description = "Zero-dependency CLI builder for Python. Decorators, color, prompts, JSON output, tree rendering, auto-env. argparse replacement built for AI agents and scripts."
 readme = "README.md"
 license = {text = "MIT"}

@@ -3,8 +3,14 @@
 > Zero-dependency CLI builder for Python. Decorators, color, prompts, JSON output, tree rendering, auto-env — argparse without the bloat, built for AI agents and scripts.
 
 ```bash
-pip install tiny-cli   # coming soon
+# From GitHub (recommended -- not yet on PyPI)
+pip install git+https://github.com/hussain-alsaibai/tiny-cli.git
 ```
+
+<!-- NOTE: the name `tiny-cli` on PyPI belongs to a different project
+(TinyBio LLC -- a genomic tooling CLI). This project is not published to
+PyPI under that name, and `pip install tiny-cli` would fetch that package
+instead. The GitHub URL above is the correct install for this project. -->
 
 ## Why?
 

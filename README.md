@@ -1,5 +1,11 @@
 # tiny-cli
 
+[![Python](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Zero Dependencies](https://img.shields.io/badge/dependencies-zero-brightgreen.svg)](tiny_cli.py)
+[![CI](https://github.com/hussain-alsaibai/tiny-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/hussain-alsaibai/tiny-cli/actions/workflows/ci.yml)
+[![Version](https://img.shields.io/badge/version-1.2.0-blue)](https://github.com/hussain-alsaibai/tiny-cli)
+
 > Zero-dependency CLI builder for Python. Decorators, color, prompts, JSON output, tree rendering, auto-env — argparse without the bloat, built for AI agents and scripts.
 
 ```bash
@@ -333,9 +339,17 @@ Pair it with `tiny-config` for layered settings, `tiny-log` for machine-readable
 ## Tests
 
 ```bash
-python test_tiny_cli.py
-# Ran 42 tests in 0.008s — OK
+python -m pytest -q
+# 59 tests passed
 ```
+
+| File | Tests |
+|------|-------|
+| `test_tiny_cli.py` | 42 |
+| `test_v120_from_module.py` | 15 |
+| `test_version_consistency.py` | 2 |
+
+CI runs the suite on Python 3.9 through 3.12.
 
 ## Ecosystem
 

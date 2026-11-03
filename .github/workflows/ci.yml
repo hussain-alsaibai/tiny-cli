@@ -23,4 +23,4 @@ jobs:
       - name: Install tiny-cli
         run: pip install -e .
       - name: Run tests
-        run: python -m pytest test_tiny_cli.py test_v120_from_module.py -v
+        run: python -m pytest test_tiny_cli.py test_v120_from_module.py test_completion.py -v

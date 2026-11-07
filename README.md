@@ -228,6 +228,36 @@ def risky():
 | `INTERNAL` | 3 | Internal sanitizer / config failure |
 | `ABORT` | 130 | SIGINT (Ctrl-C) |
 
+## Shell Completion (bash, zsh, fish)
+
+Generate and install completion scripts from a registered App:
+
+```python
+import tiny_cli as tc
+from tiny_cli import App
+from completion import ShellCompletion
+
+app = App(name="mytool", help="My CLI tool")
+
+@app.command(help="Greet someone")
+def greet(name: str, shout: bool = tc.option("--shout", "-s", default=False, type=bool)):
+    pass
+
+# Emit a bash completion script
+print(ShellCompletion(app).emit_bash())
+
+# Or install for the current user (writes to $XDG_DATA_HOME/...)
+ShellCompletion(app).install("bash")   # writes myapp to bash-completion/completions/
+ShellCompletion(app).install("zsh")    # writes _myapp to zsh/site-functions/
+ShellCompletion(app).install("fish")   # writes myapp.fish to fish/vendor_completions.d/
+```
+
+The scripts handle: subcommand listing, `--long` and `-s` short flags,
+`choices=` (dev/staging/prod, etc.), positional argument completion, and
+bool flags (no value required).
+
+Stdlib-only - no `shellingham` or process introspection.
+
 ## API
 
 | Function | Description |

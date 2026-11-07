@@ -41,4 +41,4 @@ classifiers = [
 Homepage = "https://github.com/hussain-alsaibai/tiny-cli"
 Repository = "https://github.com/hussain-alsaibai/tiny-cli"
 [tool.setuptools]
-py-modules = ["tiny_cli"]
+py-modules = ["tiny_cli", "completion"]

@@ -4,7 +4,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Zero Dependencies](https://img.shields.io/badge/dependencies-zero-brightgreen.svg)](tiny_cli.py)
 [![CI](https://github.com/hussain-alsaibai/tiny-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/hussain-alsaibai/tiny-cli/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-1.2.0-blue)](https://github.com/hussain-alsaibai/tiny-cli)
+[![Version](https://img.shields.io/badge/version-1.3.0-blue)](https://github.com/hussain-alsaibai/tiny-cli)
 
 > Zero-dependency CLI builder for Python. Decorators, color, prompts, JSON output, tree rendering, auto-env — argparse without the bloat, built for AI agents and scripts.
 
@@ -84,7 +84,24 @@ $ mytool rm /etc/passwd
 
 ## JSON output mode (agents, scripts, CI)
 
-Set `TINY_CLI_JSON=1` or pass `--json` to get a single JSON envelope on stdout. Errors still go to stderr. The exit code is preserved.
+Set `TINY_CLI_JSON=1`, pass `--json`, or construct `App(output_mode="json")`
+to get exactly one JSON envelope on stdout. The exit code is preserved.
+
+**Return data, don't print it.** In JSON mode the envelope owns stdout for
+the whole command run: `print()` and `echo()` output is captured and returned
+in the `stdout` field instead of leaking ahead of the JSON. This is what makes
+`mytool cmd --json | jq` work. Nothing your command prints is lost.
+
+The return value is the payload:
+
+| Return value | `result` | `exit_code` |
+|---|---|---|
+| `None` | `null` | `0` |
+| an `int` | the `int` | the `int` (legacy exit-code form) |
+| anything else (str, dict, list) | the value | `0` |
+
+An exception becomes `{"error": "ValueError: ...", "exit_code": 1}` with the
+traceback kept out of the envelope.
 
 ```bash
 $ TINY_CLI_JSON=1 mytool greet alice --shout --times 2
@@ -95,6 +112,10 @@ $ TINY_CLI_JSON=1 mytool add 2 3
 
 $ TINY_CLI_JSON=1 mytool greet
 {"command": "greet", "args": null, "result": null, "error": "parse error (exit 2)", "exit_code": 2}
+
+# A command that prints AND returns: stdout is captured, not leaked.
+$ TINY_CLI_JSON=1 mytool upload ./file.tar.gz
+{"command": "upload", "args": {"path": "./file.tar.gz"}, "result": {"bytes": 4194304}, "error": null, "exit_code": 0, "stdout": "uploading...\ndone\n"}
 ```
 
 Pipe it into `jq`:

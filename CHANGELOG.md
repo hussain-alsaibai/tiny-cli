@@ -2,6 +2,38 @@
 
 All notable changes to tiny-cli are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.3.0] — 2026-11-09
+
+### Fixed
+- **A command returning a `str` or `dict` crashed in JSON mode.** Every
+  non-`None` return was passed through `int()`, so
+  `return {"id": 7}` produced
+  `{"result": null, "error": "ValueError: invalid literal for int() ...",
+  "exit_code": 1}`. Returning data is the documented JSON-mode contract, so
+  the documented contract was the code path that failed. Return values are
+  now `result` unless they are `int` (still an exit code) or `bool`.
+- **`print()` output leaked ahead of the JSON envelope.** Only `echo()` was
+  patched out, so any command that printed — or any library it called — put
+  lines before the envelope and `--json | jq` failed with a parse error while
+  the shell pipeline exit code stayed 0, because `jq` failed rather than the
+  CLI. Stdout is now captured for the whole run and replayed into an optional
+  `stdout` field of the envelope. `echo()` output is captured there too
+  instead of being dropped.
+- **`output_mode=` was documented but not accepted as a constructor
+  argument.** The class docstring has advertised `output_mode="json"` since
+  1.1.0; `App(output_mode="json")` raised `TypeError`. It is now a real
+  parameter, validated against `text` / `json` / `silent`.
+
+### Added
+- 11 regression tests in `test_v130_json_contract.py`; **10 fail against
+  1.2.0** (the 11th is the control — the `--json` flag on an `int`-returning
+  command, which already worked and must keep working).
+
+### Notes
+- A 1.2.0 caller that returned a non-int and depended on the resulting error
+  exit code cannot exist without also ignoring that error, so this is not a
+  breaking change in practice. `int` returns are unchanged.
+
 ## [1.2.0] — 2026-10-04
 
 ### Added

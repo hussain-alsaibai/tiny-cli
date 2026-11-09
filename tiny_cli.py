@@ -22,7 +22,9 @@ Example:
 from __future__ import annotations
 
 import argparse
+import contextlib
 import inspect
+import io
 import json
 import os
 import shlex
@@ -46,7 +48,7 @@ from typing import (
     get_type_hints,
 )
 
-__version__ = "1.2.0"
+__version__ = "1.3.0"
 
 # Exit code constants (POSIX-friendly + signal-derived)
 OK = 0
@@ -756,6 +758,7 @@ class App:
         version: Optional[str] = None,
         auto_env: Union[bool, str] = False,
         env_path: Optional[Union[str, Path]] = None,
+        output_mode: Optional[str] = None,
     ):
         self.name = name or Path(sys.argv[0]).stem
         self.help = help
@@ -767,13 +770,24 @@ class App:
         self._auto_env = auto_env
         self._env_path = env_path
 
-        # Resolve output_mode from explicit param, env var, or --json flag.
-        env_json = os.environ.get("TINY_CLI_JSON") == "1"
-        cli_json = "--json" in sys.argv[1:]
-        if env_json or cli_json:
-            self.output_mode: str = "json"
+        # Resolve output_mode from the explicit param, the env var, or --json.
+        # v1.3.0: output_mode is now a real constructor parameter. It was
+        # documented in the class docstring since 1.1.0 but never accepted,
+        # so `App(output_mode="json")` raised TypeError for anyone who read
+        # the docs instead of the test suite.
+        if output_mode is not None:
+            if output_mode not in ("text", "json", "silent"):
+                raise ValueError(
+                    f"output_mode must be 'text', 'json' or 'silent', got {output_mode!r}"
+                )
+            self.output_mode: str = output_mode
         else:
-            self.output_mode = "text"
+            env_json = os.environ.get("TINY_CLI_JSON") == "1"
+            cli_json = "--json" in sys.argv[1:]
+            if env_json or cli_json:
+                self.output_mode = "json"
+            else:
+                self.output_mode = "text"
 
         # Auto-load .env if requested
         if self._auto_env:
@@ -1016,6 +1030,54 @@ class App:
 
     # ---- JSON output helpers ------------------------------------------
 
+    # ---- v1.3.0: JSON-mode execution helpers --------------------------
+
+    def _invoke(self, fn: Callable[..., Any], kwargs: Dict[str, Any]) -> Tuple[Any, int, Optional[str]]:
+        """Call a command, returning (result, exit_code, error_message).
+
+        A command's return value is *data*, not an exit code, unless it is an
+        int. Before v1.3.0 every non-None return was passed through int(), so
+        a command returning a dict or string died with
+        `ValueError: invalid literal for int()` and reported exit 1 — in
+        exactly the JSON mode where returning data is the documented
+        contract.
+        """
+        try:
+            result = fn(**kwargs)
+        except KeyboardInterrupt:
+            return None, ABORT, "aborted"
+        except TypeError as e:
+            return None, USAGE, f"argument error: {e}"
+        except Exception as e:
+            return None, ERROR, f"{type(e).__name__}: {e}"
+
+        if result is None:
+            return None, OK, None
+        if isinstance(result, bool):
+            return result, OK, None
+        if isinstance(result, int):
+            return result, result, None
+        return result, OK, None
+
+    def _finish_json(
+        self,
+        cmd: str,
+        kwargs: Dict[str, Any],
+        result: Any,
+        rc: int,
+        error: Optional[str],
+        captured: str,
+    ) -> int:
+        self._emit_json(
+            command=cmd,
+            args=kwargs,
+            result=result,
+            error=error,
+            exit_code=rc,
+            stdout=captured,
+        )
+        return rc
+
     def _emit_json(
         self,
         *,
@@ -1024,6 +1086,7 @@ class App:
         result: Any = None,
         error: Optional[str] = None,
         exit_code: int = 0,
+        stdout: str = "",
     ) -> None:
         """Emit a single JSON envelope describing the command run."""
         # Best-effort serialization: fall back to repr for unknown types.
@@ -1043,6 +1106,8 @@ class App:
             "error": error,
             "exit_code": int(exit_code),
         }
+        if stdout:
+            payload["stdout"] = stdout
         sys.stdout.write(json.dumps(payload, ensure_ascii=False) + "\n")
         sys.stdout.flush()
 
@@ -1152,56 +1217,36 @@ class App:
                 if v is not None:
                     kwargs[pname] = v
 
+        if self.output_mode == "json":
+            # v1.3.0: in JSON mode the envelope owns stdout for the whole
+            # command run. Before this, echo() was patched out but a plain
+            # print() (or any library writing to stdout) still leaked lines
+            # ahead of the envelope, so `tiny_cli_app cmd --json | jq`
+            # failed to parse. Capture stdout, then replay it into the
+            # envelope under "stdout" so nothing is lost.
+            with contextlib.redirect_stdout(io.StringIO()) as _cap:
+                try:
+                    result, rc, _error = self._invoke(fn, kwargs)
+                except BaseException:
+                    self._emit_json(command=cmd, args=kwargs, result=None,
+                                    error="internal error", exit_code=INTERNAL,
+                                    stdout=_cap.getvalue())
+                    raise
+            captured = _cap.getvalue()
+            return self._finish_json(cmd, kwargs, result, rc, _error, captured)
+
         try:
-            # In JSON mode, suppress echo() so user commands don't pollute
-            # stdout. The user is expected to return their data from the
-            # command function instead. We patch both the module global
-            # (used by the bundled demo) and the tiny_cli.echo attribute
-            # (used by code that imports tiny_cli as `tc`).
-            if self.output_mode == "json":
-                _self_module = sys.modules[__name__]
-                original_module_echo = _self_module.echo
-
-                def _suppressed_echo(text: str = "", *, color: bool = True) -> None:
-                    pass
-
-                globals()["echo"] = _suppressed_echo
-                _self_module.echo = _suppressed_echo
-            try:
-                result = fn(**kwargs)
-                rc = int(result) if result is not None else OK
-            finally:
-                if self.output_mode == "json":
-                    _self_module = sys.modules[__name__]
-                    globals()["echo"] = _self_module.echo
-                    _self_module.echo = original_module_echo
+            result = fn(**kwargs)
+            rc = int(result) if isinstance(result, (int, bool)) else OK
         except KeyboardInterrupt:
-            err_msg = "aborted"
-            if self.output_mode == "json":
-                self._emit_json(command=cmd, args=kwargs, result=None,
-                                error=err_msg, exit_code=ABORT)
-            else:
-                err(err_msg)
+            err("aborted")
             return ABORT
         except TypeError as e:
-            if self.output_mode == "json":
-                self._emit_json(command=cmd, args=kwargs, result=None,
-                                error=f"argument error: {e}", exit_code=USAGE)
-            else:
-                err(f"argument error: {e}")
+            err(f"argument error: {e}")
             return USAGE
         except Exception as e:
-            err_msg = f"{type(e).__name__}: {e}"
-            if self.output_mode == "json":
-                self._emit_json(command=cmd, args=kwargs, result=None,
-                                error=err_msg, exit_code=ERROR)
-            else:
-                err(err_msg)
+            err(f"{type(e).__name__}: {e}")
             return ERROR
-
-        if self.output_mode == "json":
-            self._emit_json(command=cmd, args=kwargs, result=result, error=None,
-                            exit_code=rc)
         return rc
 
 

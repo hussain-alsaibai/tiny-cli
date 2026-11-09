@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.9", "3.10", "3.11", "3.12"]
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -23,4 +23,4 @@ jobs:
       - name: Install tiny-cli
         run: pip install -e .
       - name: Run tests
-        run: python -m pytest test_tiny_cli.py test_v120_from_module.py test_completion.py -v
+        run: python -m pytest test_tiny_cli.py test_v120_from_module.py test_completion.py test_v130_json_contract.py test_version_consistency.py -v

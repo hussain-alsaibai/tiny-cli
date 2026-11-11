@@ -2,6 +2,20 @@
 
 All notable changes to tiny-cli are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.3.1] — 2026-11-11
+
+### Fixed
+- **The test suite passed file-by-file and failed as a suite.** Under
+  `pytest -q`, collection order is alphabetical, so `test_completion.py`
+  imported `tiny_cli` *before* `test_tiny_cli.py` got a chance to run
+  `os.environ.setdefault("TINY_CLI_FORCE_COLOR", "1")`. `_NO_COLOR` is
+  computed once at import, latched to `True`, and
+  `TestColor::test_style` failed with `'31' not found in 'hi'` — a colour
+  library reporting it had no colour. CI runs one file per command in its
+  matrix, which is why a red suite never showed up there.
+  Fixed in `conftest.py`, which pytest imports before collecting any test
+  module. Same suite, 0 failures, in either file order. No runtime change.
+
 ## [1.3.0] — 2026-11-09
 
 ### Fixed

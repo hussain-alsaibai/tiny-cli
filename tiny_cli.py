@@ -48,7 +48,7 @@ from typing import (
     get_type_hints,
 )
 
-__version__ = "1.3.0"
+__version__ = "1.3.1"
 
 # Exit code constants (POSIX-friendly + signal-derived)
 OK = 0

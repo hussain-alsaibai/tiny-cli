@@ -7,7 +7,9 @@
 - Repository: https://github.com/hussain-alsaibai/tiny-cli
 - Language: Python (3.8+)
 - Runtime dependencies: 0
-- Install: `pip install tiny-cli` (or copy `tiny_cli.py`)
+- Install: `pip install git+https://github.com/hussain-alsaibai/tiny-cli.git`
+  (or copy `tiny_cli.py`). Do NOT run `pip install tiny-cli` - that PyPI
+  name belongs to TinyBio LLC's genomics CLI, not this project.
 - Docs: README.md, `pyproject.toml`, `bench_tiny_cli.py`
 
 ## What this library does

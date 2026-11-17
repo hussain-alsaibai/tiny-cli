@@ -2,6 +2,66 @@
 
 All notable changes to tiny-cli are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.3.2] — 2026-11-17
+
+### Fixed
+- **A flag whose name differed from its parameter name never reached the
+  command.** `tc.option("--user")` on `def show(user_id: str = ...)` registered
+  an argparse argument whose derived `dest` is `user`, while dispatch looked the
+  value up by parameter name, `user_id`. `hasattr(args, "user_id")` was False,
+  so the parameter was never bound:
+
+  - flag supplied → silently discarded, command ran on the marker default
+  - flag omitted → the raw marker dict was passed as the value
+
+  The second case made the documented JSON contract produce this:
+
+  ```console
+  $ myapp show --json
+  {"result": {"id": {"_kind": "option", "flags": ["--user"], "default": "1", ...}}}
+  ```
+
+  Both are fixed at the source: `add_argument(..., dest=pname)` pins the dest to
+  the parameter name for the `store_true` and typed forms alike. Text mode hid
+  the defect — the value was formatted into a string nobody compared — so the
+  regression test asserts on text mode as well as JSON mode.
+
+### Changed
+- A parameter argparse does not populate now has its declared default bound
+  explicitly instead of relying on Python's call-time fallback. Marker defaults
+  (`option()` / `argument()` descriptors) are skipped, which is what stops the
+  descriptor from reaching the command.
+
+### Added
+- `test_v131_option_dest.py` — 10 tests. Five fail against 1.3.1; the others
+  guard the matching-name, plain-default, required-flag and JSON-purity shapes.
+  Every pre-existing test used `times` / `--times`, the one case where
+  argparse's derived dest is already correct, which is why 57 tests missed it.
+- `test_llms_drift.py` — 35 tests over `llms.txt`: version header, Python
+  floor, advertises-every-export, and **executes** the two documented snippets.
+  15 fail against the pre-1.3.2 file.
+
+### Fixed (found while writing the docs)
+- **An option with no `default=` was not required.** `def add(text: str =
+  tc.option("--text"))` registered an optional flag, so omitting it ran the
+  command with the descriptor dict as the value. No default now means
+  `required=True`, matching the `def f(x)` convention.
+- **A parse error wrote `usage: ...` to stdout ahead of the JSON envelope.**
+  `| jq` failed to parse while the exit code looked like the app's own. stdout
+  is redirected for the parse and the usage line is re-emitted inside the
+  envelope's `error` field.
+- **A descriptor reaching a command now raises.** Any future path that would
+  pass a marker dict is an error, not a silent serialisation.
+
+### Fixed (docs)
+- `llms.txt` advertised 1.1.0 on a 1.3.1 package and `Python (3.8+)` against a
+  `>=3.9` floor. Its first example called `@cli.option(...)` as a decorator -
+  `option` is a default-value marker, so the snippet raised `AttributeError`
+  on the first line a new user copies.
+
+### Notes
+- No API change. Existing CLIs that used matching names are unaffected.
+
 ## [1.3.1] — 2026-11-11
 
 ### Fixed

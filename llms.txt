@@ -1,11 +1,11 @@
 # tiny-cli
 
-> Zero-dependency CLI framework for Python. Auto env discovery, JSON mode, agent output. For humans and AI agents.
+> Zero-dependency CLI framework for Python. Decorators, sub-commands, colour, prompts, progress, tables and trees, plus a JSON envelope agents can parse. For humans and AI agents.
 
-- Version: 1.1.0
+- Version: 1.3.2
 - License: MIT
 - Repository: https://github.com/hussain-alsaibai/tiny-cli
-- Language: Python (3.8+)
+- Language: Python (3.9+)
 - Runtime dependencies: 0
 - Install: `pip install git+https://github.com/hussain-alsaibai/tiny-cli.git`
   (or copy `tiny_cli.py`). Do NOT run `pip install tiny-cli` - that PyPI
@@ -16,8 +16,9 @@
 
 Builds command-line interfaces with argument parsing, sub-commands, auto-generated
 help, JSON / Tree / Table output, automatic environment-variable discovery from CLI
-flag names, and structured output suitable for AI agents (JSON mode by default
-when stdout is not a TTY or `JSON=1` is set).
+flag names, progress and spinner widgets, shell completion, and structured output
+suitable for AI agents (JSON mode by default when stdout is not a TTY or `JSON=1`
+is set).
 
 ## When to use it
 
@@ -26,42 +27,125 @@ when stdout is not a TTY or `JSON=1` is set).
 - You want agents to call your CLI as a subprocess and get structured JSON.
 - You need sub-commands with consistent UX.
 - You want env vars auto-mapped to flags (`--max-retries` ↔ `MAX_RETRIES`).
+- You want commands discovered from a whole module instead of registered one by one.
 
 ## When NOT to use it
 
-- You need full POSIX getopt semantics (we use argparse under the hood).
-- You need interactive prompts with cursor control (use `questionary`).
-- You need rich terminal UI (use `rich` or `textual`).
+- You need plugin entry points and shell-formatted `--help` identical to `click`.
+- You need async command handlers or a full TUI event loop.
+- You need a config-file format of its own (`tiny-config` covers that; this reads `.env`).
 
 ## Public API
 
-- `@cli.command(name=..., help=...)` — decorator
-- `@cli.argument("name", type=..., help=...)` — positional argument
-- `@cli.option("--flag", env="FLAG", type=..., default=...)` — optional flag
-- `cli.run()` — entry point
-- `cli.json_mode(auto=True)` — auto-detect non-TTY for JSON output
-- `cli.Tree(data, root=...)` — pretty tree printer
-- `cli.Table(rows, columns=...)` — pretty table printer
+### Application
 
-## Code example
+- `App(name, ...)` — the CLI object; `App(output_mode="text" | "json" | "silent")`
+- `App.command(name=None, help=None)` — decorator registering a sub-command
+- `App.command_from(fn, *, name=None)` — register an external function as a command
+- `App.from_module(mod, *, name=None, help=None, version=None, auto_env=False,
+  env_path=None, prefix="", only_decorated=True)` — classmethod that discovers
+  commands from a module object or a dotted-path string
+- `App.run(argv=None)` — parse and dispatch
+
+### Decorators
+
+- `option(*flags, **kwargs)` — flag with type, default, `env=`, `help=`
+- `argument(name, ...)` — positional argument
+
+### Output
+
+- `echo(text, *, color=True)` — stdout, captured into the JSON envelope when in JSON mode
+- `err(text, *, color=True)` — stderr
+- `status(msg, ok=True)` — one-line pass/fail summary
+- `style` — ANSI helpers (`style.bold`, `style.red`, ...)
+- `Table`, `Tree` — table and tree renderers, both also serialise to dicts
+- `Progress`, `Spinner` — determinate and indeterminate progress
+- `prompt(question, ...)`, `confirm(question, default=False)` — interactive input
+
+### Environment
+
+- `load_env(path=".env", *, override=False)` — parse a `.env` file into `os.environ`
+
+### Exit codes
+
+- `OK` (0), `ERROR` (1), `USAGE` (2), `INTERNAL` (70), `ABORT` (130)
+
+### Shell completion
+
+- `completion.ShellCompletion` — emit bash / zsh / fish completion scripts
+
+## The JSON contract
+
+Return a value from a command and it becomes the envelope's `result`:
+
+```python
+@app.command(help="Show one user")
+def show(user_id: str = tc.option("--user", default="1")):
+    """Load and return a user record."""
+    return {"id": user_id, "name": "Alice"}
+```
+
+```console
+$ myapp show --user 7 | jq -r .result.name
+Alice
+```
+
+The flag (`--user`) and the parameter (`user_id`) intentionally do not match.
+That is supported and tested since 1.3.2; before it, argparse filed the value
+under `user` while the dispatcher looked for `user_id`, so the flag was
+discarded without an error.
+
+Rules that hold as of 1.3.x:
+
+1. A `str` or `dict` return is placed in `result` verbatim. It is **not** coerced to an exit code.
+2. An `int` return is treated as an **exit code**, and `result` is `null`. A `bool` is not an exit code.
+3. Anything printed during the run — including from a third-party library — is captured and replayed into the optional `stdout` field, so the envelope stays parseable.
+4. The envelope is `{"result": ..., "error": ..., "exit_code": ...}` plus `stdout` when non-empty.
+
+Rule 2 catches people who write `return 1` meaning "one record". If you want the
+number back, return `{"count": 1}`.
+
+## Minimal example
 
 ```python
 import tiny_cli as tc
 
-cli = tc.App(name="mytool", version="1.0.0")
+cli = tc.App("journal", version="1.0.0")
 
-@cli.command()
-@cli.option("--name", required=True, env="USER_NAME")
-@cli.option("--greet", is_flag=True, default=False)
-def hello(name, greet):
-    """Say hello."""
-    msg = f"Hello, {name}!"
-    if greet:
-        msg = f"Greetings, {name}!"
-    cli.print(msg)
+@cli.command(help="Add an entry")
+def add(text: str, tag: str = tc.option("--tag", default="misc")):
+    """Write an entry to the journal."""
+    tc.echo(f"[{tag}] {text}")
 
 if __name__ == "__main__":
     cli.run()
+```
+
+`option()` is a *default-value marker*, not a decorator: it annotates the
+parameter it is assigned to, and the flag name is free to differ from the
+parameter name. A required option is written by giving the parameter no
+default:
+
+```python
+@cli.command(help="Add an entry")
+def add(text: str = tc.option("--text")):   # required: no default supplied
+    ...
+```
+
+Sub-commands, tree output, and progress:
+
+```python
+from tiny_cli import App, Tree, Progress
+
+cli = App("scan")
+
+@cli.command(help="Walk a tree")
+@cli.option("--root", default=".")
+def walk(root):
+    """Walk and report."""
+    t = Tree(root)
+    t.add("a", "b", "c")
+    cli.print(t)          # text mode: pretty tree; JSON mode: nested dict
 ```
 
 ## Integration with the tiny-* ecosystem
@@ -69,23 +153,28 @@ if __name__ == "__main__":
 - Reads config via `tiny_config.load` automatically.
 - Logs via `tiny_log` when `--verbose` is set.
 - Returns machine-readable dicts that `tiny-validator` can validate downstream.
+- Emits exit codes an orchestrator can branch on without parsing text.
 
 ## Compatibility
 
-- Python 3.8 – 3.13 confirmed.
+- Python 3.9 – 3.13 confirmed (CI matrix on ubuntu-24.04).
 - No C extensions.
 - Works on Linux, macOS, Windows.
 
 ## Common pitfalls
 
-1. `env=` is uppercase by convention; CLI flag auto-derives if omitted.
-2. JSON mode triggers only when stdout is not a TTY — pipe `| jq` to verify.
-3. Sub-commands are case-sensitive.
-4. Help text is auto-generated; explicit `@cli.option(help=...)` wins.
+1. `env=` is uppercase by convention; the CLI flag auto-derives it when omitted.
+2. JSON mode triggers when stdout is not a TTY — pipe `| jq` to verify, do not rely on a flag alone.
+3. Sub-commands are case-sensitive; `prefix=` on `from_module` is applied with a `-`.
+4. Help text is auto-generated from docstrings; an explicit `@option(help=...)` wins.
+5. `from_module(only_decorated=True)` skips functions imported from other modules — `from os import path` will not become a sub-command.
 
 ## Changelog
 
+- 1.3.2 — `option()`/`argument()` names no longer have to match the parameter name; supplied flags actually reach the command
+- 1.3.1 — test suite isolation fix in `conftest.py` (colour latched at import); no runtime change
+- 1.3.0 — JSON contract fixed: `str`/`dict` returns become `result`, `print()` captured into `stdout`, `output_mode=` accepted by the constructor
+- 1.2.0 — `App.from_module`, `App.command_from`, shell completion
 - 1.1.0 — JSON mode, Tree, auto-env, better Table, agent output modes
 - 1.0.0 — sub-commands, options, positional args
 - 0.9.0 — initial release
-

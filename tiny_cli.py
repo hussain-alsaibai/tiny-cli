@@ -48,7 +48,7 @@ from typing import (
     get_type_hints,
 )
 
-__version__ = "1.3.1"
+__version__ = "1.3.2"
 
 # Exit code constants (POSIX-friendly + signal-derived)
 OK = 0
@@ -1003,14 +1003,34 @@ class App:
                 if _is_marker(default):
                     m = default
                     if m["_kind"] == "option":
+                        # `dest` must be the *parameter* name. argparse
+                        # derives dest from the first long flag (`--user` ->
+                        # `user`), but dispatch looks the value up by
+                        # parameter name. When the two differ
+                        # (`def show(user_id: str = tc.option("--user"))`)
+                        # argparse succeeded, the flag parsed, and the
+                        # command was then called with the raw marker dict
+                        # as the default - or not called with the value at
+                        # all. Existing tests only used matching names
+                        # (`times` / `--times`), which is the one case where
+                        # the derived dest happens to be correct.
                         if m["type"] is bool:
                             sub.add_argument(*m["flags"], action="store_true",
+                                             dest=pname,
                                              help=m["help"],
                                              default=m["default"] if m["default"] is not ... else False)
                         else:
-                            kwargs: Dict[str, Any] = {"help": m["help"], "default": m["default"]}
+                            kwargs: Dict[str, Any] = {"dest": pname, "help": m["help"], "default": m["default"]}
                             if m["default"] is ...:
+                                # No default written by the author means
+                                # "required", the same convention as
+                                # `def f(x)` with no default. Before this,
+                                # the marker's Ellipsis was dropped and
+                                # argparse made the flag optional, so
+                                # omitting it left the command holding the
+                                # raw descriptor dict instead of failing.
                                 kwargs.pop("default")
+                                kwargs["required"] = True
                             sub.add_argument(*m["flags"], type=_str_coerce_for_argparse(m["type"]),
                                              choices=m["choices"], **kwargs)
                     elif m["_kind"] == "argument":
@@ -1171,7 +1191,17 @@ class App:
 
         # Parse — wrap errors as JSON if needed
         try:
-            args = parser.parse_args(argv)
+            if self.output_mode == "json":
+                # argparse writes its usage line and "error: ..." to stderr
+                # already, but `--help` prints to stdout - and in JSON mode
+                # stdout belongs to the envelope. Redirect stdout for the
+                # parse itself so a parse error cannot put "usage: ..."
+                # ahead of the JSON line, which makes `| jq` fail with a
+                # parse error while the exit code looks like the app's.
+                with contextlib.redirect_stdout(io.StringIO()):
+                    args = parser.parse_args(argv)
+            else:
+                args = parser.parse_args(argv)
         except SystemExit as e:
             # argparse calls sys.exit on parse errors / --help
             code = int(e.code) if e.code is not None else 0
@@ -1189,11 +1219,17 @@ class App:
                         exit_code=OK,
                     )
                 else:
+                    # Re-emit the usage text into the envelope's error field
+                    # instead of losing it with the redirect above.
+                    import io as _io
+                    ubuf = _io.StringIO()
+                    parser.print_usage(ubuf)
+                    usage_line = ubuf.getvalue().strip()
                     self._emit_json(
                         command=None,
                         args=None,
                         result=None,
-                        error=f"parse error (exit {code})",
+                        error=f"parse error (exit {code}): {usage_line}",
                         exit_code=code or USAGE,
                     )
             return code if code != 0 else OK
@@ -1215,7 +1251,26 @@ class App:
             if hasattr(args, pname):
                 v = getattr(args, pname)
                 if v is not None:
+                    # A descriptor reaching a command is always a bug: the
+                    # command gets a dict where it expects a value, and in
+                    # JSON mode that dict is serialised into the result.
+                    # Fail loudly instead of shipping the marker downstream.
+                    if _is_marker(v):
+                        raise RuntimeError(
+                            f"parameter {pname!r} of command {cmd!r} received an "
+                            f"option()/argument() descriptor instead of a value; "
+                            f"check that its flag is declared with a default"
+                        )
                     kwargs[pname] = v
+            elif param.default is not inspect.Parameter.empty and not _is_marker(param.default):
+                # A parameter argparse did not populate still has a declared
+                # default - a plain literal one. Bind it explicitly rather
+                # than relying on the call to fall back, so the command sees
+                # the same value in text and JSON mode. Marker defaults are
+                # skipped: those are option()/argument() descriptors, and
+                # passing one through hands the command a dict instead of a
+                # value (the bug fixed alongside this branch).
+                kwargs[pname] = param.default
 
         if self.output_mode == "json":
             # v1.3.0: in JSON mode the envelope owns stdout for the whole

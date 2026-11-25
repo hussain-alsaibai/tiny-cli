@@ -48,7 +48,7 @@ from typing import (
     get_type_hints,
 )
 
-__version__ = "1.3.2"
+__version__ = "1.3.3"
 
 # Exit code constants (POSIX-friendly + signal-derived)
 OK = 0
@@ -709,10 +709,19 @@ def option(
     *flags: str,
     default: Any = ...,
     help: str = "",
-    type: type = str,
+    type: Optional[type] = None,
     choices: Optional[Sequence[str]] = None,
 ) -> Any:
-    """Mark a function parameter as a CLI option (flag)."""
+    """Mark a function parameter as a CLI option (flag).
+
+    ``type`` is optional. When it is omitted the parser uses the parameter's
+    annotation (``def top(limit: int = option("--limit"))`` gives an int),
+    falling back to the type of ``default``, then to ``str``. Before 1.3.3 an
+    omitted ``type`` silently meant ``str``, so an annotated ``int`` option
+    arriving on the command line was a string while the same parameter's
+    default was an int -- one parameter, two types, decided by whether the
+    user passed the flag.
+    """
     return {"_kind": "option", "flags": flags, "default": default, "help": help,
             "type": type, "choices": list(choices) if choices else None}
 
@@ -720,12 +729,16 @@ def option(
 def argument(
     name: str,
     *,
-    type: type = str,
+    type: Optional[type] = None,
     default: Any = ...,
     help: str = "",
     choices: Optional[Sequence[str]] = None,
 ) -> Any:
-    """Mark a function parameter as a positional CLI argument."""
+    """Mark a function parameter as a positional CLI argument.
+
+    ``type`` follows the same rule as :func:`option`: omitted means "use the
+    annotation".
+    """
     return {"_kind": "argument", "name": name, "default": default, "help": help,
             "type": type, "choices": list(choices) if choices else None}
 
@@ -996,6 +1009,7 @@ class App:
                 if pname == "self":
                     continue
                 t = hints.get(pname, str)
+                _has_annotation = pname in hints
                 default = param.default
                 if default is inspect.Parameter.empty:
                     default = ...
@@ -1014,7 +1028,8 @@ class App:
                         # all. Existing tests only used matching names
                         # (`times` / `--times`), which is the one case where
                         # the derived dest happens to be correct.
-                        if m["type"] is bool:
+                        _mtype = _resolve_marker_type(m, t, _has_annotation)
+                        if _mtype is bool:
                             sub.add_argument(*m["flags"], action="store_true",
                                              dest=pname,
                                              help=m["help"],
@@ -1031,11 +1046,12 @@ class App:
                                 # raw descriptor dict instead of failing.
                                 kwargs.pop("default")
                                 kwargs["required"] = True
-                            sub.add_argument(*m["flags"], type=_str_coerce_for_argparse(m["type"]),
+                            sub.add_argument(*m["flags"], type=_str_coerce_for_argparse(_mtype),
                                              choices=m["choices"], **kwargs)
                     elif m["_kind"] == "argument":
                         nargs = "?" if m["default"] is not ... else None
-                        sub.add_argument(m["name"], nargs=nargs, type=_str_coerce_for_argparse(m["type"]),
+                        _atype = _resolve_marker_type(m, t, _has_annotation)
+                        sub.add_argument(m["name"], nargs=nargs, type=_str_coerce_for_argparse(_atype),
                                          choices=m["choices"], help=m["help"],
                                          default=m["default"] if m["default"] is not ... else None)
                 else:
@@ -1309,6 +1325,36 @@ def _str_coerce_for_argparse(t: Any) -> Any:
     """argparse wants callables that take a single string and return the value."""
     if t in (str, int, float):
         return t
+    return str
+
+
+def _resolve_marker_type(marker: Dict[str, Any], annotation: Any, has_annotation: bool) -> Any:
+    """Decide the flag's converter: explicit ``type=`` > annotation > default > str.
+
+    ``@option``/``@argument`` carry ``type=None`` when the author did not write
+    ``type=``. Resolving it here, at parser-build time, is what keeps a
+    parameter's type constant across the two paths a user can take: supply the
+    flag and argparse calls the converter, omit it and the declared default is
+    used as-is. Resolving it to ``str`` on the first path only (the pre-1.3.3
+    behaviour) made ``limit: int`` hold ``"5"`` from the CLI and ``10`` from
+    the default, and made ``choices=[1, 2, 3]`` reject ``--level 2`` because
+    argparse compared the raw string against ints.
+
+    A bare ``bool`` annotation is honoured the same way as an explicit
+    ``type=bool``: the caller turns it into a store_true flag rather than a
+    converter. That is why ``verbose: bool = option("--verbose")`` now behaves
+    like the documented ``type=bool`` spelling instead of asking for a value.
+    """
+    explicit = marker.get("type")
+    if explicit is not None:
+        return explicit
+    if has_annotation and annotation in (str, int, float, bool):
+        return annotation
+    declared_default = marker.get("default")
+    if declared_default is not None and declared_default is not ...:
+        inferred = type(declared_default)
+        if inferred in (str, int, float, bool):
+            return inferred
     return str
 
 

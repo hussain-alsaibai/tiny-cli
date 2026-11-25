@@ -2,6 +2,32 @@
 
 All notable changes to tiny-cli are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.3.3] — 2026-11-25
+
+### Fixed
+- **A parameter's type depended on how it was supplied.** `option()` and
+  `argument()` declared `type: type = str`, so an omitted `type=` meant `str`
+  rather than "infer it". `def top(limit: int = tc.option("--limit", default=10))`
+  therefore held `"5"` when the user typed `--limit 5` and `10` when they did
+  not — one parameter, two types, chosen by the command line. Every arithmetic
+  operation, comparison and JSON envelope downstream behaved differently on the
+  two paths. The same root cause made `choices=[1, 2, 3]` reject its own valid
+  values: argparse compared the raw string `"2"` against ints and reported
+  `invalid choice: '2'`.
+
+  `type` now defaults to `None` and is resolved once, at parser-build time, by
+  `_resolve_marker_type()` — explicit `type=` first, then a `str`/`int`/`float`
+  annotation, then the type of the declared default, then `str`. A bare `bool`
+  annotation still takes the `store_true` branch and never reaches the
+  converter.
+
+### Added
+- `test_v133_annotation_types.py` — 11 tests. The narrowing half matters as
+  much as the fix: `choices` must still reject `--level 9`, `str` annotation
+  must beat an `int` default (otherwise "has an annotation" is read as "is
+  unannotated"), an explicit `type=str` must beat a `int` annotation, and the
+  `bool` flag branch must not regress.
+
 ## [1.3.2] — 2026-11-17
 
 ### Fixed

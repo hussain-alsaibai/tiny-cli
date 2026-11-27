@@ -2,6 +2,48 @@
 
 All notable changes to tiny-cli are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.3.4] — 2026-11-27
+
+### Fixed — `Table` lost a column and mis-sorted a column, both silently
+
+`Table(["A","B"]).add_row("x","y","z")` raised `IndexError: list index out of
+range` from the width loop, several frames below the caller, with a message
+that named neither the row nor the table. It is now a `ValueError` naming the
+cell count, the column count, and the headers, raised before the row is added
+so a caller that catches it still has the table it started with.
+
+`filter_cols("Name", "Typo")` returned a **one-column table** — the typo was
+simply not kept, and the printed result looked like a table that had always
+had one column. Unknown columns now raise, naming both the missing name and
+the headers that exist.
+
+`sort_by("Size")` compared every cell as a string, so a size column sorted
+`10, 9, 100`. A column is now sorted numerically when **every** non-empty cell
+parses as a number; a single `-` or `n/a` keeps the whole column in string
+order rather than reordering around it. Empty cells sort last in a numeric
+column — an absent value is not smaller than a real one. `sort_by` on an
+unknown column raises instead of returning unchanged.
+
+None of these changed the shape of the object: `sort_by` returned a `Table`
+before and after, with the rows in the wrong order. The defect was in the
+string it printed, which no test was reading.
+
+### Added — `proof_1_3_4.py`
+
+Five scenarios run against the working tree **and** any git revision
+(`--against origin/main`), printing what each returns, so every fix above is
+demonstrated red on the old code and green on the new.
+
+### Tests
+
+`test_v134_table_contract.py` (22 tests): over-wide row (raised, and the
+table left unchanged), short row padding, width recomputation, unknown column
+in `filter_cols` and `sort_by` (raised, table unchanged), filter reordering
+with alignment, numeric ascending/descending, a mixed column staying textual,
+empty-last, and the rendered string for all three themes.
+
+176 passed.
+
 ## [1.3.3] — 2026-11-25
 
 ### Fixed

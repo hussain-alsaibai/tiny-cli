@@ -48,7 +48,7 @@ from typing import (
     get_type_hints,
 )
 
-__version__ = "1.3.3"
+__version__ = "1.3.4"
 
 # Exit code constants (POSIX-friendly + signal-derived)
 OK = 0
@@ -486,6 +486,15 @@ class Tree:
 # ---------------------------------------------------------------------------
 
 
+def _is_number(text: str) -> bool:
+    """True when a cell reads as a number, so a column can be sorted by value."""
+    try:
+        float(text.strip())
+    except (TypeError, ValueError):
+        return False
+    return True
+
+
 class Table:
     """ASCII table renderer with multiple themes.
 
@@ -519,6 +528,17 @@ class Table:
 
     def add_row(self, *cells: str) -> "Table":
         cells_list = [str(c) for c in cells]
+        # More cells than headers previously raised IndexError out of the
+        # width loop, several frames away from the caller. The table cannot
+        # drop the surplus (that is silent data loss) and cannot invent a
+        # header for it, so it says which row and how many.
+        if len(cells_list) > len(self.headers):
+            raise ValueError(
+                f"row {len(self.rows)} has {len(cells_list)} cells but the "
+                f"table has {len(self.headers)} columns "
+                f"({', '.join(repr(h) for h in self.headers)}); "
+                f"add headers or drop cells"
+            )
         while len(cells_list) < len(self.headers):
             cells_list.append("")
         self.rows.append(cells_list)
@@ -529,6 +549,14 @@ class Table:
     def filter_cols(self, *names: str) -> "Table":
         """Keep only the named columns (in the given order)."""
         keep_idx: List[int] = []
+        missing = [n for n in names if n not in self.headers]
+        # A typo used to drop the column silently: filter_cols("Name",
+        # "Typo") returned a one-column table and the caller printed it.
+        if missing:
+            raise ValueError(
+                f"no such column(s) {', '.join(repr(m) for m in missing)}; "
+                f"table has {', '.join(repr(h) for h in self.headers)}"
+            )
         for name in names:
             if name in self.headers:
                 keep_idx.append(self.headers.index(name))
@@ -541,13 +569,30 @@ class Table:
         return self
 
     def sort_by(self, col_name: str, reverse: bool = False) -> "Table":
-        """Sort rows by a column. Values are compared as strings (natural order)."""
+        """Sort rows by a column, numerically where the column is numeric.
+
+        "10" used to sort before "9" because every cell was compared as a
+        string. A column counts as numeric only when every non-empty cell in
+        it parses as a number, so one stray "-" or "n/a" keeps the whole
+        column in string order instead of reordering around it.
+        """
         if col_name not in self.headers:
-            return self
+            raise ValueError(
+                f"no such column {col_name!r}; "
+                f"table has {', '.join(repr(h) for h in self.headers)}"
+            )
         idx = self.headers.index(col_name)
 
-        def sort_key(row: List[str]) -> str:
-            return row[idx] if idx < len(row) else ""
+        values = [row[idx] if idx < len(row) else "" for row in self.rows]
+        numeric = all(_is_number(v) for v in values if v != "")
+
+        def sort_key(row: List[str]) -> Any:
+            raw = row[idx] if idx < len(row) else ""
+            if numeric and raw != "":
+                return (0, float(raw))
+            # Empty cells sort last in an ascending numeric column: an absent
+            # value is not smaller than a real one, it is just absent.
+            return (1 if numeric else 0, "" if numeric else raw)
 
         self.rows.sort(key=sort_key, reverse=reverse)
         return self

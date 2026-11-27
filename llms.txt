@@ -2,7 +2,7 @@
 
 > Zero-dependency CLI framework for Python. Decorators, sub-commands, colour, prompts, progress, tables and trees, plus a JSON envelope agents can parse. For humans and AI agents.
 
-- Version: 1.3.3
+- Version: 1.3.4
 - License: MIT
 - Repository: https://github.com/hussain-alsaibai/tiny-cli
 - Language: Python (3.9+)
@@ -171,6 +171,7 @@ def walk(root):
 
 ## Changelog
 
+- 1.3.4 — Table refuses an over-wide row, names an unknown column instead of dropping it, and sorts a numeric column by value (`10` after `9`)
 - 1.3.3 — a parameter's type comes from its annotation or default, not from whether the flag was supplied
 - 1.3.2 — `option()`/`argument()` names no longer have to match the parameter name; supplied flags actually reach the command
 - 1.3.1 — test suite isolation fix in `conftest.py` (colour latched at import); no runtime change

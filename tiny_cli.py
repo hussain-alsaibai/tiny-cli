@@ -48,7 +48,7 @@ from typing import (
     get_type_hints,
 )
 
-__version__ = "1.3.4"
+__version__ = "1.3.5"
 
 # Exit code constants (POSIX-friendly + signal-derived)
 OK = 0
@@ -590,11 +590,21 @@ class Table:
             raw = row[idx] if idx < len(row) else ""
             if numeric and raw != "":
                 return (0, float(raw))
-            # Empty cells sort last in an ascending numeric column: an absent
-            # value is not smaller than a real one, it is just absent.
-            return (1 if numeric else 0, "" if numeric else raw)
+            # Empty cells sort last in a numeric column: an absent value is not
+            # smaller than a real one, it is just absent.
+            #
+            # The bucket is 1 whichever direction the sort runs, because
+            # `reverse` is applied to the key's order and would otherwise put
+            # the empty cells first on a descending sort -- 1.3.4 shipped that,
+            # and the test covering it only sorted ascending. Empty is the only
+            # value whose rank is stated as a position rather than as a value,
+            # so it is the only one that has to be pinned against `reverse`.
+            return (1, 0.0) if numeric else (0, raw)
 
         self.rows.sort(key=sort_key, reverse=reverse)
+        if numeric:
+            # Pull the empty cells back to the end after a descending sort.
+            self.rows.sort(key=lambda row: 0 if row[idx] != "" else 1)
         return self
 
     def _format_cell(self, value: str, width: int, align: str) -> str:

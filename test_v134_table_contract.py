@@ -137,6 +137,38 @@ class TestSortBy:
         t.sort_by("Size")
         assert [r[1] for r in rows_of(t)] == ["9", ""]
 
+    def test_empty_cells_sort_last_in_a_numeric_column_both_directions(self):
+        """1.3.4 put empty cells first on a descending sort.
+
+        `reverse=True` reverses the key order, and the empty bucket was encoded
+        as "sort after" in the same tuple, so it became "sort first". The
+        ascending test that shipped passed the whole time. A rule stated as
+        "last" has to be checked in the direction that reverses it.
+        """
+        body = ["10", "9", "100", ""]
+        ascending = tc.Table(["Size"])
+        descending = tc.Table(["Size"])
+        for value in body:
+            ascending.add_row(value)
+            descending.add_row(value)
+
+        assert [r[0] for r in rows_of(ascending.sort_by("Size"))] == ["9", "10", "100", ""]
+        assert [r[0] for r in rows_of(descending.sort_by("Size", reverse=True))] == ["100", "10", "9", ""]
+
+    def test_numeric_sort_is_stable_across_equal_keys(self):
+        """Two equal sizes keep their input order, empty still last."""
+        t = tc.Table(["Name", "Size"])
+        t.add_row("first", "5")
+        t.add_row("second", "5")
+        t.add_row("third", "")
+        assert [r[1] for r in rows_of(t.sort_by("Size", reverse=True))] == ["5", "5", ""]
+
+    def test_all_empty_column_does_not_raise(self):
+        t = tc.Table(["Size"])
+        t.add_row("")
+        t.add_row("")
+        assert [r[0] for r in rows_of(t.sort_by("Size", reverse=True))] == ["", ""]
+
     def test_unknown_column_is_named(self):
         t = tc.Table(["Name"])
         t.add_row("a")

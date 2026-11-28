@@ -38,6 +38,10 @@ SCENARIOS = [
         "filter_keeps_align",
         lambda m: run(lambda: _align(m)),
     ),
+    (
+        "descending-empty-last",
+        lambda m: run(lambda: _descending(m)),
+    ),
 ]
 
 
@@ -66,6 +70,21 @@ def _sort(m):
     t.add_row("b", "9")
     t.sort_by("Size")
     return repr([r[1] for r in t.rows])
+
+
+def _descending(m):
+    """Empty stays last when the numeric sort runs the other way.
+
+    1.3.4 encoded "empty sorts last" in the sort key, which `reverse=True`
+    flipped to "empty sorts first". The ascending scenario above passed
+    throughout -- the rule was only ever tested in the direction that agrees
+    with it.
+    """
+    t = m.Table(["Size"])
+    for value in ("10", "9", "100", ""):
+        t.add_row(value)
+    t.sort_by("Size", reverse=True)
+    return repr([r[0] for r in t.rows])
 
 
 def _unknown_col(m):

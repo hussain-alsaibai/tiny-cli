@@ -4,7 +4,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Zero Dependencies](https://img.shields.io/badge/dependencies-zero-brightgreen.svg)](tiny_cli.py)
 [![CI](https://github.com/hussain-alsaibai/tiny-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/hussain-alsaibai/tiny-cli/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-1.3.4-blue)](https://github.com/hussain-alsaibai/tiny-cli)
+[![Version](https://img.shields.io/badge/version-1.3.5-blue)](https://github.com/hussain-alsaibai/tiny-cli)
 
 > Zero-dependency CLI builder for Python. Decorators, color, prompts, JSON output, tree rendering, auto-env — argparse without the bloat, built for AI agents and scripts.
 

@@ -2,6 +2,38 @@
 
 All notable changes to tiny-cli are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.3.5] — 2026-11-28
+
+### Fixed — a descending numeric sort put the empty cells first
+
+1.3.4 taught `sort_by` that an empty cell sorts last in a numeric column. It
+encoded that as a position in the sort key, and `reverse=True` reverses the
+key order, so:
+
+```python
+t.sort_by("Size")                  # ['9', '10', '100', '']   correct
+t.sort_by("Size", reverse=True)    # ['', '100', '10', '9']   empty first
+```
+
+The passing test sorted only ascending, which is the one direction where the
+rule and its implementation agree. A rule stated as a position ("last") is not
+the same claim as a rule stated as a value ("smallest"), and only one of them
+survives `reverse`.
+
+Empty cells now go to the end after the sort in both directions. Ascending
+output is unchanged, equal values keep their input order, and a column where
+every cell is empty sorts without raising.
+
+### Added — `descending-empty-last`
+
+The fifth-table scenario in `proof_1_3_4.py`. It prints `['', '100', '10', '9']`
+against `6c9ca5e` and `['100', '10', '9', '']` against this tree.
+
+### Tests
+
+`test_v134_table_contract.py` gains three: empty-last in both directions,
+stability across equal keys, and an all-empty column.
+
 ## [1.3.4] — 2026-11-27
 
 ### Fixed — `Table` lost a column and mis-sorted a column, both silently
